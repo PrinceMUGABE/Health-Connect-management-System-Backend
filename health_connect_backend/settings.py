@@ -40,6 +40,8 @@ INSTALLED_APPS = [
     'appointmentApp',
     'examApp',
     'examResultApp',
+    'reportApp',
+    'activityApp',
     
 ]
 

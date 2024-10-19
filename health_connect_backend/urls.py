@@ -13,6 +13,8 @@ urlpatterns = [
     path('appointment/', include('appointmentApp.urls')),
     path('exam/', include('examApp.urls')),
     path('result/', include('examResultApp.urls')),
+    path('report/', include('reportApp.urls')),
+    path('activity/', include('activityApp.urls')),
     
     
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

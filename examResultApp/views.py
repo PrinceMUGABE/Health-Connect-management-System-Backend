@@ -134,6 +134,7 @@ from django.utils import timezone  # To work with dates
 def create_exam_result(request):
     logging.info("Received request to create exam result.")
     existing_result = None  # Initialize variable here to avoid reference before assignment
+    candidate = None  # Initialize candidate variable
     try:
         # Extract and validate input data
         exam_id = request.data.get('exam')
@@ -164,10 +165,11 @@ def create_exam_result(request):
         logging.info(f"User: {user.phone}")
 
         # Get the candidate instance
-        try:
-            candidate = Candidate.objects.get(user=user)
+        candidates = Candidate.objects.filter(user=user)
+        if candidates.exists():
+            candidate = candidates.first()  # Get the first candidate
             logging.info(f"Candidate found: {candidate.id}.")
-        except Candidate.DoesNotExist:
+        else:
             logging.error(f"Candidate for user {user.phone} does not exist.")
             return Response({'error': 'Candidate associated with the user does not exist'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -176,8 +178,8 @@ def create_exam_result(request):
             existing_result = ExamResult.objects.filter(created_by=candidate, exam=exam).latest('created_at')
             logging.info(f"Found existing exam result for candidate {candidate.id} and exam {exam_id}.")
             
-            # If the result status is 'succeed', prevent saving new result
-            if existing_result.status == 'succeed':
+            # If the result status is 'succeeded', prevent saving new result
+            if existing_result.status == 'succeeded':
                 logging.warning("Candidate has already completed the training.")
                 return Response({'error': 'You have already completed the training.'}, status=status.HTTP_400_BAD_REQUEST)
 
