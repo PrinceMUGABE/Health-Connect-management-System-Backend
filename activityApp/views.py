@@ -12,13 +12,36 @@ logger = logging.getLogger(__name__)
 @permission_classes([IsAuthenticated])
 def create_activity(request):
     logger.info("Received data for creating activity: %s", request.data)
-    serializer = ActivitySerializer(data=request.data)
-    if serializer.is_valid():
-        serializer.save(created_by=request.user)
-        logger.info("Activity created successfully: %s", serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    logger.error("Error creating activity: %s", serializer.errors)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # Manually extract the data from the request
+    name = request.data.get('name')
+
+    if not name:
+        logger.error("Name is required to create an activity")
+        return Response({'error': 'Name is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        # Manually create the Activity object with the logged-in user as the creator
+        activity = Activity.objects.create(
+            name=name,
+            created_by=request.user  # Automatically set the created_by field to the logged-in user
+        )
+        
+        # Return the created activity as a response
+        activity_data = {
+            'id': activity.id,
+            'name': activity.name,
+            'created_by': request.user.phone
+        }
+
+        logger.info("Activity created successfully: %s", activity_data)
+        return Response(activity_data, status=status.HTTP_201_CREATED)
+
+    except Exception as e:
+        logger.error("Error creating activity: %s", e)
+        return Response({'error': 'Error creating activity'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 
 @api_view(['GET'])
 def get_all_activities(request):
@@ -27,6 +50,7 @@ def get_all_activities(request):
     logger.info("Returned all activities: %s", serializer.data)
     return Response(serializer.data)
 
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_activities_by_user(request):
@@ -34,6 +58,7 @@ def get_activities_by_user(request):
     serializer = ActivitySerializer(activities, many=True)
     logger.info("Returned activities for user %s: %s", request.user.id, serializer.data)
     return Response(serializer.data)
+
 
 @api_view(['GET'])
 def get_activity_by_id(request, activity_id):

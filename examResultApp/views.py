@@ -253,11 +253,18 @@ def create_exam_result(request):
 
 
 
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def exam_result_list(request):
     exam_results = ExamResult.objects.all()
+    
+    # Serialize the exam results
     serializer = ExamResultSerializer(exam_results, many=True)
+    
+    # Log the serialized data
+    logger.info(f"Retrieved {len(exam_results)} exam result(s). Data: {serializer.data}")
+    
     return Response(serializer.data)
 
 
@@ -271,10 +278,18 @@ def get_exam_result(request, pk):
     try:
         exam_result = ExamResult.objects.get(pk=pk)
     except ExamResult.DoesNotExist:
+        logger.error(f"Exam result with id {pk} not found.")  # Log an error if the exam result is not found
         return Response({"error": "Exam result not found."}, status=status.HTTP_404_NOT_FOUND)
 
+    # Serialize the exam result
     serializer = ExamResultSerializer(exam_result)
+    
+    # Log the serialized data
+    logger.info(f"Retrieved exam result data for id {pk}: {serializer.data}")
+    
     return Response(serializer.data)
+
+
 
 
 @api_view(['PUT'])
@@ -320,7 +335,7 @@ def delete_exam_result(request, pk):
 
 
 
-from .serializers import ExamResultDetailSerializer
+
 # Set up logging
 logger = logging.getLogger(__name__)
 
@@ -334,7 +349,7 @@ def get_user_exam_results(request):
     try:
         # Fetch the candidates associated with the user
         candidates = Candidate.objects.filter(user=user)
-        
+
         if not candidates.exists():
             logger.error(f"No candidates found for user {user.phone}.")
             return Response({'error': 'No candidates found for the logged-in user.'}, status=status.HTTP_404_NOT_FOUND)
@@ -342,7 +357,6 @@ def get_user_exam_results(request):
         # Log the number of candidates found
         logger.info(f"Found {candidates.count()} candidates for user {user.phone}.")
 
-        # If you want to consider the first candidate, you could do this:
         candidate = candidates.first()
 
         # Now fetch exam results for the candidate
@@ -356,40 +370,13 @@ def get_user_exam_results(request):
         logger.info(f"Found {exam_results.count()} exam results for candidate {candidate.first_name} {candidate.last_name}.")
 
         # Serialize the exam results
-        serializer = ExamResultDetailSerializer(exam_results, many=True)
+        serializer = ExamResultSerializer(exam_results, many=True)
+        
+        logger.info(f"Found Results {serializer.data}")  # Log serialized data
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     except Exception as e:
         logger.exception("An error occurred while fetching exam results.")  # Log the exception
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    user = request.user  # Get the currently logged-in user
-    logger.info(f"User {user.phone} is requesting their exam results.")  # Log user request
-
-    try:
-        # Fetch the candidate associated with the user
-        try:
-            candidate = Candidate.objects.get(user=user)
-            logger.info(f"Found candidate: {candidate.first_name} {candidate.last_name} for user {user.phone}.")
-        except Candidate.DoesNotExist:
-            logger.error(f"Candidate not found for user {user.phone}.")
-            return Response({'error': 'Candidate not found for the logged-in user.'}, status=status.HTTP_404_NOT_FOUND)
-
-        # Now fetch exam results for the candidate
-        exam_results = ExamResult.objects.filter(created_by=candidate).select_related(
-            'exam', 
-            'exam__training', 
-            'created_by'
-        ).order_by('-created_at')  # Order by most recent results
-
-        # Log the number of results found
-        logger.info(f"Found {exam_results.count()} exam results for candidate {candidate.first_name} {candidate.last_name}.")
-
-        # Serialize the exam results
-        serializer = ExamResultDetailSerializer(exam_results, many=True)
-
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    except Exception as e:
-        logger.exception("An error occurred while fetching exam results.")  # Log the exception
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)  
+ 

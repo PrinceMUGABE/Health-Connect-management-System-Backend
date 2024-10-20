@@ -11,7 +11,8 @@ from .views import (
     GetAppointmentsByLastNameView,
     GetAppointmentsByCreatedByView,
     GetAppointmentsByAppointedToView,
-    GetAppointmentsForLoggedInWorkerView
+    GetAppointmentsForLoggedInWorkerView,
+    GetAppointmentsForLoggedInUser
     
 )
 
@@ -28,4 +29,5 @@ urlpatterns = [
     path('created_by/<str:phone>/', GetAppointmentsByCreatedByView.as_view(), name='get-appointments-by-created-by'),
     path('appointed_to/<int:worker_id>/', GetAppointmentsByAppointedToView.as_view(), name='get-appointments-by-appointed-to'),
     path('worker_appointments/', GetAppointmentsForLoggedInWorkerView.as_view(), name='worker-appointments'),
+    path('user_appointments/', GetAppointmentsForLoggedInUser.as_view(), name='worker-appointments'),
 ]

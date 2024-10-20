@@ -29,3 +29,6 @@ class CandidateSerializer(serializers.ModelSerializer):
         model = Candidate
         fields = ['id', 'user', 'training', 'first_name', 'last_name', 'status', 'created_at']
 
+
+
+
