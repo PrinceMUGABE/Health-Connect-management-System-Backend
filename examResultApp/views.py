@@ -126,15 +126,14 @@ import io
 from datetime import timedelta
 from django.utils import timezone  # To work with dates
 
-from datetime import timedelta
-from django.utils import timezone  # To work with dates
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_exam_result(request):
     logging.info("Received request to create exam result.")
-    existing_result = None  # Initialize variable here to avoid reference before assignment
-    candidate = None  # Initialize candidate variable
+    existing_result = None
+    candidate = None
+    
     try:
         # Extract and validate input data
         exam_id = request.data.get('exam')
@@ -142,6 +141,9 @@ def create_exam_result(request):
         status_str = request.data.get('status')
         picture_data = request.data.get('image')
 
+        logging.debug(f"Input data: exam_id={exam_id}, marks={marks}, status={status_str}, picture_data_length={len(picture_data) if picture_data else 0}")
+
+        # Validate input
         if not exam_id or marks is None or not status_str or picture_data is None:
             logging.warning("Validation failed: All fields are required.")
             return Response({'error': 'All fields are required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -149,6 +151,7 @@ def create_exam_result(request):
         # Decode the base64 string to bytes
         try:
             picture_data = base64.b64decode(picture_data)
+            logging.info("Successfully decoded submitted picture.")
         except Exception as e:
             logging.error(f"Failed to decode submitted picture: {e}")
             return Response({'error': 'Failed to decode submitted picture'}, status=status.HTTP_400_BAD_REQUEST)
@@ -167,7 +170,7 @@ def create_exam_result(request):
         # Get the candidate instance
         candidates = Candidate.objects.filter(user=user)
         if candidates.exists():
-            candidate = candidates.first()  # Get the first candidate
+            candidate = candidates.first()
             logging.info(f"Candidate found: {candidate.id}.")
         else:
             logging.error(f"Candidate for user {user.phone} does not exist.")
@@ -178,20 +181,20 @@ def create_exam_result(request):
             existing_result = ExamResult.objects.filter(created_by=candidate, exam=exam).latest('created_at')
             logging.info(f"Found existing exam result for candidate {candidate.id} and exam {exam_id}.")
             
-            # If the result status is 'succeeded', prevent saving new result
-            if existing_result.status == 'succeeded':
+            # Check if the result status is 'succeeded'
+            if existing_result.status == 'succeed':
                 logging.warning("Candidate has already completed the training.")
-                return Response({'error': 'You have already completed the training.'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': 'You have completed the training and can now get award on the certificate panel.'}, status=status.HTTP_400_BAD_REQUEST)
 
             # If the result status is 'failed', check the time difference between results
             if existing_result.status == 'failed':
-                one_week_ago = timezone.now() - timedelta(weeks=2)
+                two_weeks_ago = timezone.now() - timedelta(weeks=2)
                 
-                if existing_result.created_at >= one_week_ago:
-                    logging.warning("Candidate cannot retake the exam within a week of the last attempt.")
+                if existing_result.created_at >= two_weeks_ago:
+                    logging.warning("Candidate cannot retake the exam within two weeks of the last attempt.")
                     return Response({'error': 'You can only retake the exam after two weeks from the last failed attempt.'}, status=status.HTTP_400_BAD_REQUEST)
                 
-                logging.info("Candidate is eligible to retake the exam (more than one week has passed).")
+                logging.info("Candidate is eligible to retake the exam (more than two weeks has passed).")
 
         except ExamResult.DoesNotExist:
             logging.info("No existing result found for this candidate and exam. Proceeding with new result creation.")
@@ -232,7 +235,7 @@ def create_exam_result(request):
                 existing_result.save()
                 logging.info(f"Exam result updated successfully for user: {user.phone}")
                 return Response({'result': 'Exam result updated successfully', 'match_score': picture_match}, status=status.HTTP_200_OK)
-            elif existing_result is None:  # No existing result found, create a new one
+            else:  # No existing result found or existing result is not 'failed', create a new one
                 # Save a new result
                 result = ExamResult(
                     created_by=candidate,
@@ -245,11 +248,24 @@ def create_exam_result(request):
                 return Response({'result': 'Success', 'match_score': picture_match}, status=status.HTTP_200_OK)
         else:
             logging.warning(f'Images match: False (Score: {picture_match})')
-            return Response({'error': 'You are not the right person doing exam.', 'match_score': picture_match}, status=status.HTTP_403_FORBIDDEN)
+            return Response({'error': 'You are not the right person doing the exam.', 'match_score': picture_match}, status=status.HTTP_403_FORBIDDEN)
 
     except Exception as e:
-        logging.error(f"Error during image processing: {e}")
-        return Response({'error': f'Error during image processing: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        error_message = f"Error during processing: {str(e)}"
+        logging.error(error_message, exc_info=True)
+        print(error_message)  # This will display the error message in the terminal
+        return Response({'error': error_message}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # This line should never be reached, but we'll add it as a fallback
+    return Response({'error': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+
+
+
+
 
 
 

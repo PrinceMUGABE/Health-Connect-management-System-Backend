@@ -11,4 +11,5 @@ urlpatterns = [
     path('address/<str:address>/', views.get_workers_by_address, name='get_workers_by_address'),
     path('update/<int:id>/', views.update_worker, name='update_worker'),
     path('delete/<int:id>/', views.delete_worker, name='delete_worker'),
+    path('me/', views.get_logged_in_worker_info, name='get_logged_in_worker_info'),
 ]

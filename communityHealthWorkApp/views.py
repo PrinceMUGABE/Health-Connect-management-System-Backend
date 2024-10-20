@@ -156,3 +156,19 @@ def delete_worker(request, id):
         return Response({'detail': 'Worker status updated to rejected'}, status=status.HTTP_200_OK)
     except CommunityHealthWorker.DoesNotExist:
         return Response({'detail': 'Worker not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+
+# New view to get the logged-in user's worker information
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_logged_in_worker_info(request):
+    try:
+        # Get the worker associated with the logged-in user
+        worker = CommunityHealthWorker.objects.get(created_by=request.user)
+        serializer = CommunityHealthWorkerSerializer(worker)
+        return Response(serializer.data)
+    except CommunityHealthWorker.DoesNotExist:
+        return Response({'detail': 'Worker not found for this user'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)

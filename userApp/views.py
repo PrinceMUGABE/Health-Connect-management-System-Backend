@@ -279,19 +279,166 @@ def get_user_profile(request):
     return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-# Reset password
+import logging
+import re
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from userApp.models import User
+from django.utils import timezone
+from django.core.exceptions import ObjectDoesNotExist  # Import this for exception handling
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def reset_password(request):
-    serializer = ResetPasswordSerializer(data=request.data)
-    if serializer.is_valid():
-        phone = serializer.validated_data['phone']
-        new_password = serializer.validated_data['new_password']
+    logger.info("Received request to reset password.")
 
+    # Manually get data from the request
+    phone = request.data.get('phone')
+    new_password = request.data.get('new_password')
+
+    logger.debug(f"Phone: {phone}, New Password: {new_password}")
+
+    # Validate the phone number
+    if not phone or not re.match(r'^(078|079|072|073)\d{7}$', phone):
+        logger.error("Invalid phone number format.")
+        return JsonResponse({
+            'error': 'Phone number must be exactly 10 digits and start with 078, 079, 072, or 073.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    # Validate the new password
+    if not new_password:
+        logger.error("New password is missing.")
+        return JsonResponse({'error': 'New password is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if (len(new_password) < 5 or 
+        not re.search(r'[!@#$%^&*(),.?":{}|<>]', new_password) or
+        not re.search(r'[A-Z]', new_password) or
+        not re.search(r'[a-z]', new_password) or
+        not re.search(r'\d', new_password)):
+        logger.error("Password validation failed.")
+        return JsonResponse({
+            'error': 'Password must be at least 5 characters long, contain a special character, an uppercase letter, a lowercase letter, and a number.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
         # Find the user by phone
-        user = get_object_or_404(User, phone=phone)
-        user.set_password(new_password)
+        user = User.objects.get(phone=phone)
+    except ObjectDoesNotExist:
+        logger.error("User with the provided phone number does not exist.")
+        return JsonResponse({'error': 'Phone number not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Proceed to set the new password
+    user.set_password(new_password)
+    user.save()
+    logger.info("Password reset successfully for user: %s", phone)
+
+    return JsonResponse({'message': 'Password reset successfully.'}, status=status.HTTP_200_OK)
+
+
+
+
+
+import logging
+from rest_framework.response import Response
+from rest_framework.decorators import api_view
+from .serializers import ContactUsSerializer
+from django.core.mail import send_mail
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
+from rest_framework import status
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+@api_view(['POST'])
+def contact_us(request):
+    logger.info("Received contact request with data: %s", request.data)
+    
+    serializer = ContactUsSerializer(data=request.data)
+    
+    if serializer.is_valid():
+        names = serializer.validated_data['names']
+        email = serializer.validated_data['email']
+        subject = serializer.validated_data['subject']
+        description = serializer.validated_data['description']
+        
+        # Check for empty fields
+        if not names.strip():
+            logger.error("Name field is empty.")
+            return Response({"error": "Name field cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        if not subject.strip():
+            logger.error("Subject field is empty.")
+            return Response({"error": "Subject field cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        if not description.strip():
+            logger.error("Description field is empty.")
+            return Response({"error": "Description field cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate email format
+        try:
+            validate_email(email)
+        except ValidationError:
+            logger.error("Invalid email format: %s", email)
+            return Response({"error": "Invalid email format."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Sending email
+        try:
+            send_mail(
+                subject=f"Contact Us: {subject}",
+                message=f"Name: {names}\nEmail: {email}\n\nDescription:\n{description}",
+                from_email=email,
+                recipient_list=['harerimanaclementkella@gmail.com'],
+                fail_silently=False,
+            )
+            logger.info("Email sent successfully to %s", email)
+            return Response({"message": "Email sent successfully."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.exception("An error occurred while sending email: %s", e)
+            return Response({"error": "Failed to send email."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    logger.error("Invalid serializer data: %s", serializer.errors)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+from .models import User
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def create_user(request):
+    phone = request.data.get('phone')
+    role = request.data.get('role')
+
+    errors = {}
+
+    # Validate phone number
+    if not phone:
+        errors['phone'] = "Phone number is required."
+    elif not (phone.startswith('072') or phone.startswith('078') or phone.startswith('073') or phone.startswith('079')) or len(phone) != 10:
+        errors['phone'] = "Phone number must be 10 digits and start with 072, 078, 073, or 079."
+    
+    # Duplicate phone number check
+    if User.objects.filter(phone=phone).exists():
+        errors['phone'] = "This phone number already exists."
+
+    if errors:
+        return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+
+        # Save user
+        user = User(
+            phone=phone,
+            role=role
+        )
         user.save()
 
-        return Response({'message': 'Password reset successfully.'}, status=status.HTTP_200_OK)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"message": "User created successfully."}, status=status.HTTP_201_CREATED)
+
+    except Exception as e:
+        return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
