@@ -73,13 +73,13 @@ def get_image_from_file(image):
 
         # Check if multiple faces are detected first
         if len(faces) > 1:
-            logging.error("Multiple faces detected in the image.")
-            return None, "Multiple faces detected in the image."
+            logging.error("More than one person is found in the image, Submit a picture with one person.")
+            return None, "More than one person is found in the image, Submit a picture with one person."
         
         # Check if no faces are detected
         if len(faces) == 0:
-            logging.error("No faces detected in the image.")
-            return None, "No faces detected in the image."
+            logging.error("The system could not detect faces in the submitted image, try again.")
+            return None, "The system could not detect faces in the submitted image, try again."
 
         logging.info("Successfully loaded and validated image.")
         return loaded_image, None
