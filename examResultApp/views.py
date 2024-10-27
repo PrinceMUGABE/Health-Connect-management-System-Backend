@@ -88,6 +88,7 @@ def get_image_from_file(image):
         logging.error(f"Failed to process image: {e}")
         return None, "Failed to decode submitted picture."
 
+
 def compare_images_content(submitted_picture, existing_picture):
     """Compare the content of two images."""
     try:
@@ -125,6 +126,8 @@ import io
 
 from datetime import timedelta
 from django.utils import timezone  # To work with dates
+from communityHealthWorkApp.models import CommunityHealthWorker
+
 
 
 @api_view(['POST'])
@@ -166,9 +169,14 @@ def create_exam_result(request):
 
         user = request.user
         logging.info(f"User: {user.phone}")
+        
+        worker = CommunityHealthWorker.objects.filter(created_by=user)
+        logging.info(f"Worker: {worker}")
+        
+        
 
         # Get the candidate instance
-        candidates = Candidate.objects.filter(user=user)
+        candidates = Candidate.objects.filter(worker=worker.first())
         if candidates.exists():
             candidate = candidates.first()
             logging.info(f"Candidate found: {candidate.id}.")
@@ -200,12 +208,12 @@ def create_exam_result(request):
             logging.info("No existing result found for this candidate and exam. Proceeding with new result creation.")
 
         # Validate user picture data
-        if user.picture_data is None or len(user.picture_data) == 0:
+        if candidate.picture_data is None or len(candidate.picture_data) == 0:
             logging.warning("Validation failed: User has no profile picture.")
             return Response({'error': 'User has no profile picture'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Process the stored picture
-        stored_image, stored_error = get_image_from_file(io.BytesIO(user.picture_data))
+        stored_image, stored_error = get_image_from_file(io.BytesIO(candidate.picture_data))
         if stored_image is None:
             logging.error(f"Error with stored picture: {stored_error}")
             return Response({'error': stored_error}, status=status.HTTP_400_BAD_REQUEST)
@@ -363,8 +371,9 @@ def get_user_exam_results(request):
     logger.info(f"User {user.phone} is requesting their exam results.")  # Log user request
 
     try:
-        # Fetch the candidates associated with the user
-        candidates = Candidate.objects.filter(user=user)
+
+        worker = CommunityHealthWorker.objects.filter(created_by=user)
+        candidates = Candidate.objects.filter(worker=worker.first())
 
         if not candidates.exists():
             logger.error(f"No candidates found for user {user.phone}.")
@@ -383,7 +392,7 @@ def get_user_exam_results(request):
         ).order_by('-created_at')  # Order by most recent results
 
         # Log the number of results found
-        logger.info(f"Found {exam_results.count()} exam results for candidate {candidate.first_name} {candidate.last_name}.")
+        logger.info(f"Found {exam_results.count()} exam results for candidate {candidate.worker.first_name} {candidate.worker.last_name}.")
 
         # Serialize the exam results
         serializer = ExamResultSerializer(exam_results, many=True)
@@ -396,3 +405,85 @@ def get_user_exam_results(request):
         logger.exception("An error occurred while fetching exam results.")  # Log the exception
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
  
+ 
+ 
+ 
+ 
+ 
+ 
+
+
+   
+   
+   
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from django.db.models import Q
+from .models import ExamResult
+from .serializers import CommunityHealthWorkerSerializer
+from serviceApp.models import Service
+from communityHealthWorkApp.models import CommunityHealthWorker
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_qualified_workers(request, service_id):
+    """
+    Get workers who have passed exams for trainings in a specific service.
+    
+    Path Parameters:
+    - service_id: ID of the service to filter by
+    
+    Returns:
+    - List of qualified community health workers
+    """
+    try:
+        # Log the service ID being queried
+        logger.info(f'Querying qualified workers for service ID: {service_id}')
+
+        # Get the service
+        try:
+            service = Service.objects.get(id=service_id)
+        except Service.DoesNotExist:
+            logger.error(f'Service with ID {service_id} not found')
+            return Response(
+                {"error": "Service not found"}, 
+                status=404
+            )
+
+        # Get worker IDs who passed exams for trainings in this service
+        qualified_worker_ids = ExamResult.objects.filter(
+            status='succeed',  # Only passed exams
+            exam__training__service=service  # Exams for trainings in this service
+        ).values_list(
+            'created_by__worker__id',  # Get the worker IDs
+            flat=True
+        ).distinct()  # Remove duplicates
+
+        # Get the actual worker objects
+        qualified_workers = CommunityHealthWorker.objects.filter(
+            id__in=qualified_worker_ids,
+            status='accepted'  # Only include active workers
+        )
+
+        # Serialize the workers
+        serializer = CommunityHealthWorkerSerializer(qualified_workers, many=True)
+        
+        # Log the number of qualified workers returned
+        logger.info(f'Qualified workers found: {len(serializer.data)}')
+        logger.debug(f'Details of qualified workers: {serializer.data}')
+
+        return Response(serializer.data)
+
+    except Exception as e:
+        logger.exception('An error occurred while fetching qualified workers')
+        return Response(
+            {"error": str(e)}, 
+            status=500
+        )
+        
+        
+        
+        
+        
+        

@@ -39,7 +39,7 @@ class User(AbstractUser):
 
     phone = models.CharField(max_length=15, unique=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='citizen')
-    picture_data = models.BinaryField(blank=True, null=True)
+    
     created_at = models.DateTimeField(auto_now_add=True)
 
     username = None  # Remove the username field

@@ -83,7 +83,7 @@ def user_signup(request):
     phone = request.data.get('phone')
     password = request.data.get('password')
     role = request.data.get('role')
-    image_data = request.data.get('image')
+    
 
     errors = {}
 
@@ -107,35 +107,13 @@ def user_signup(request):
               any(char.islower() for char in password)):
         errors['password'] = "Password must contain at least one uppercase letter, one lowercase letter, and one digit."
 
-    # Check image data
-    if not image_data:
-        errors['image'] = "Image data is required."
 
-    if errors:
-        return Response(errors, status=status.HTTP_400_BAD_REQUEST)
-
-    try:
-        if image_data.startswith('data:image/jpeg;base64,'):
-            image_data = image_data.replace('data:image/jpeg;base64,', '')
-        
-        image_data = base64.b64decode(image_data)
-
-        submitted_image, faces = get_image_from_file(image_data)
-
-        # Check if image loaded properly
-        if submitted_image is None:
-            return Response({"image": "Failed to process the image. Please submit a valid image."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check if at least one face is detected
-        if faces is None or len(faces) == 0:
-            return Response({"image": "No faces detected in the submitted image."}, status=status.HTTP_400_BAD_REQUEST)
-
+    try: 
         # Save user
         hashed_password = make_password(password)
         user = User(
             phone=phone,
             role=role,
-            picture_data=image_data,
             password=hashed_password,
         )
         user.save()

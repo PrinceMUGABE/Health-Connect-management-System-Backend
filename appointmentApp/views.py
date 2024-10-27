@@ -257,3 +257,9 @@ class GetAppointmentsForLoggedInUser(APIView):
         except Exception as e:
             logger.error(f"An error occurred: {str(e)}")
             return Response({"error": "An error occurred"}, status=500)
+
+
+
+
+
+

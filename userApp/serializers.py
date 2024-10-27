@@ -3,17 +3,10 @@ from .models import User
 from base64 import b64encode, b64decode
 
 class UserSerializer(serializers.ModelSerializer):
-    # This serializer is for general user-related CRUD operations
-    picture_data = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'phone', 'role', 'picture_data', 'created_at']
-
-    def get_picture_data(self, obj):
-        if obj.picture_data:
-            return b64encode(obj.picture_data).decode('utf-8')  # Convert binary to base64 string
-        return None
+        fields = ['id', 'phone', 'role', 'created_at']
 
 
 class UserSignupSerializer(serializers.ModelSerializer):
@@ -22,14 +15,10 @@ class UserSignupSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['phone', 'password', 'role', 'picture_data']
+        fields = ['phone', 'password', 'role']
 
     def create(self, validated_data):
-        # Handle picture_data as binary if provided
-        picture = validated_data.pop('picture_data', None)
-        if picture:
-            validated_data['picture_data'] = picture.read()
-
+       
         user = User.objects.create_user(**validated_data)
         return user
 

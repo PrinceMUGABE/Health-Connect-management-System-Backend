@@ -15,6 +15,7 @@ urlpatterns = [
     path('result/', include('examResultApp.urls')),
     path('report/', include('reportApp.urls')),
     path('activity/', include('activityApp.urls')),
+    path('service/', include('serviceApp.urls')),
     
     
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'examResultApp',
     'reportApp',
     'activityApp',
+    'serviceApp',
     
 ]
 
@@ -193,19 +194,20 @@ EMAIL_HOST_PASSWORD = 'qrce dcaj nnne giza'  # Your email account password
 DEFAULT_FROM_EMAIL = 'no-reply@gmail.com'  # Email to appear as the sender
 
 
-
-# LOGGING = {
-#     'version': 1,
-#     'disable_existing_loggers': False,
-#     'handlers': {
-#         'console': {
-#             'class': 'logging.StreamHandler',
-#         },
-#     },
-#     'loggers': {
-#         'django': {
-#             'handlers': ['console'],
-#             'level': 'DEBUG',
-#         },
-#     },
-# }
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': 'debug.log',
+        },
+    },
+    'root': {
+        'handlers': ['console', 'file'],
+        'level': 'DEBUG',
+    },
+}
