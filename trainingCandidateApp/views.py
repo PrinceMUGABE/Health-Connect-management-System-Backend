@@ -261,15 +261,21 @@ def display_all_candidates(request):
 @permission_classes([IsAuthenticated])
 def get_user_registered_trainings(request):
     
+    print(f'User found: {request.user}')
+    
     worker = CommunityHealthWorker.objects.filter(created_by=request.user)
+    print(f'Worker ID: {worker}')
+    
     
     # Fetch all the Candidate records where the user matches the logged-in user
     candidates = Candidate.objects.filter(worker=worker.first())
+    
+    print(f'Candidate ID: {candidates}')
 
     
     # Serialize the Candidate data, which includes training details
     serializer = CandidateSerializer(candidates, many=True)
-    
+    # print(f'Serializer: {serializer}')
     # Return the serialized data as response
     return Response(serializer.data)
 
@@ -277,11 +283,6 @@ def get_user_registered_trainings(request):
 
 
 
-
-
-
-
-#cdbhhjds
 
 
 # views.py

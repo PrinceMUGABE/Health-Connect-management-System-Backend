@@ -87,7 +87,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'healthconnect_db',
         'USER': 'root',
-        'PASSWORD': '',
+        'PASSWORD': '07288',
         'HOST': 'localhost',
         'PORT': '3306',
     }
