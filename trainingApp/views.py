@@ -51,8 +51,15 @@ def create_module(request, training_id):
     except Training.DoesNotExist:
         return Response({"error": "Training not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    data = request.data.copy()
-    data['training'] = training.id  # Ensure this is set correctly
+    # Instead of copying the entire request.data, create a new dict with non-file data
+    data = {
+        'training': training.id,
+    }
+    
+    # Add other non-file fields from request.data
+    for key in request.data.keys():
+        if key != 'materials':
+            data[key] = request.data[key]
 
     # Debugging: Check the data being passed to the serializer
     print(f"Data before serialization: {data}")
@@ -61,10 +68,16 @@ def create_module(request, training_id):
     if serializer.is_valid():
         module = serializer.save()  # Save the module
 
+        # Handle file uploads separately
         if 'materials' in request.FILES:
             materials = request.FILES.getlist('materials')
             for material in materials:
-                TrainingMaterial.objects.create(module=module, file=material)
+                try:
+                    TrainingMaterial.objects.create(module=module, file=material)
+                except Exception as e:
+                    print(f"Error uploading material: {str(e)}")
+                    # Optionally handle failed uploads
+                    continue
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
