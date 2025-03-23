@@ -14,48 +14,119 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 # Create Appointment
+# views.py
+from django.shortcuts import get_object_or_404
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from django.utils import timezone
+import logging
+from .models import Appointment
+from communityHealthWorkApp.models import CommunityHealthWorker
+from serviceApp.models import Service
+
+# Set up logging
+logger = logging.getLogger(__name__)
+
 class CreateAppointmentView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         try:
-            # Manually extract data from request
+            # Extract data from request
             first_name = request.data.get('first_name')
             last_name = request.data.get('last_name')
-            worker_id = request.data.get('worker')  # Assuming you are sending the worker's ID
+            worker_id = request.data.get('worker')
+            service_id = request.data.get('service')
             address = request.data.get('address')
             details = request.data.get('details')
-            materials = request.FILES.get('materials')  # Handle file upload if needed
-
+            
+            # Log received data for debugging
+            logger.info(f"Received appointment data: {request.data}")
+            
             # Validate required fields
-            if not first_name or not last_name or not worker_id or not address or not details:
-                logger.error("Validation error: All fields are required.")
-                return Response({"error": "All fields are required."}, status=status.HTTP_400_BAD_REQUEST)
-
-            # Validate that the worker exists
-            worker = get_object_or_404(CommunityHealthWorker, id=worker_id)
-
+            missing_fields = []
+            if not first_name:
+                missing_fields.append("First name")
+            if not last_name:
+                missing_fields.append("Last name")
+            if not worker_id:
+                missing_fields.append("Worker")
+            if not service_id:
+                missing_fields.append("Service")
+            if not address:
+                missing_fields.append("Address")
+            if not details:
+                missing_fields.append("Details")
+                
+            if missing_fields:
+                error_msg = f"Missing required fields: {', '.join(missing_fields)}"
+                logger.error(error_msg)
+                return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Validate worker exists
+            try:
+                worker = get_object_or_404(CommunityHealthWorker, id=worker_id)
+            except Exception as e:
+                logger.error(f"Invalid worker ID: {worker_id}. Error: {str(e)}")
+                return Response({"error": f"Worker with ID {worker_id} not found."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Validate service exists
+            try:
+                service = get_object_or_404(Service, id=service_id)
+            except Exception as e:
+                logger.error(f"Invalid service ID: {service_id}. Error: {str(e)}")
+                return Response({"error": f"Service with ID {service_id} not found."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Set default due date to 7 days from now if not provided
+            due_date = request.data.get('due_date')
+            if not due_date:
+                due_date = timezone.now() + timezone.timedelta(days=7)
+                logger.info(f"Using default due date: {due_date}")
+            
+            # Check for duplicate appointments
+            existing_appointments = Appointment.objects.filter(
+                appointed_to=worker,
+                first_name=first_name,
+                last_name=last_name,
+                due_date__date=timezone.datetime.strptime(due_date, '%Y-%m-%d').date() if isinstance(due_date, str) else due_date.date(),
+                status='pending'
+            )
+            
+            if existing_appointments.exists():
+                logger.warning(f"Duplicate appointment attempt: {first_name} {last_name} with worker {worker_id} on {due_date}")
+                return Response(
+                    {"error": "An appointment with this worker on the same date already exists."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
             # Create a new appointment
             appointment = Appointment(
-                created_by=request.user,  # Assuming you want to set the user creating the appointment
-                appointed_to=worker,  # Set the appointed_to field
+                created_by=request.user,
+                appointed_to=worker,
                 first_name=first_name,
                 last_name=last_name,
                 address=address,
                 details=details,
-                # materials = materials,  # Uncomment if you have a field for materials in Appointment model
+                due_date=due_date,
+                status='pending',
+                service=service  # Assuming you have a service field in your model
             )
             
-            appointment.save()  # Save the appointment to the database
-
-            logger.info(f"Appointment created successfully: {appointment.id} for {first_name} {last_name}.")
-            return Response({"message": "Appointment created successfully."}, status=status.HTTP_201_CREATED)
-
+            appointment.save()
+            
+            logger.info(f"Appointment created successfully: ID {appointment.id} for {first_name} {last_name}.")
+            return Response({
+                "message": "Appointment created successfully.",
+                "appointment_id": appointment.id
+            }, status=status.HTTP_201_CREATED)
+            
         except Exception as e:
-            logger.exception("An error occurred while creating the appointment: %s", e)
-            return Response({"error": "An error occurred while creating the appointment."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
+            logger.exception(f"Error creating appointment: {str(e)}")
+            return Response({
+                "error": f"An error occurred while creating the appointment: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # Get Appointment by ID
@@ -67,6 +138,16 @@ class GetAppointmentByIdView(APIView):
         serializer = AppointmentSerializer(appointment)
         return Response(serializer.data)
 
+
+from rest_framework import status
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from django.shortcuts import get_object_or_404
+import logging
+
+# Get your logger instance
+logger = logging.getLogger(__name__)
 
 class UpdateAppointmentView(APIView):
     permission_classes = [IsAuthenticated]
@@ -84,11 +165,13 @@ class UpdateAppointmentView(APIView):
         address = request.data.get("address")
         details = request.data.get("details")
         worker_id = request.data.get("worker")
+        due_date = request.data.get("due_date")
+        status_val = request.data.get("status")  # Renamed to avoid conflict with imported status
 
-        logger.info(f"Extracted data - First Name: {first_name}, Last Name: {last_name}, Address: {address}, Details: {details}, Worker ID: {worker_id}")
+        logger.info(f"Extracted data - First Name: {first_name}, Last Name: {last_name}, Address: {address}, Details: {details}, Worker ID: {worker_id}, Due Date: {due_date}, Status: {status_val}")
 
         # Validate that the necessary fields are provided
-        if not all([first_name, last_name, address, details, worker_id]):
+        if not all([first_name, last_name, address, details, worker_id]):  # Removed due_date from the check as it might be optional
             logger.error("Missing required fields in the request.")
             return Response({"error": "All fields are required."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -105,6 +188,13 @@ class UpdateAppointmentView(APIView):
         appointment.address = address
         appointment.details = details
         appointment.appointed_to = worker
+        
+        if due_date:
+            appointment.due_date = due_date
+        
+        # Update status if provided and valid
+        if status_val and status_val in dict(Appointment.STATUS_CHOICES):
+            appointment.status = status_val
 
         # Save the updated appointment
         appointment.save()
@@ -119,6 +209,8 @@ class UpdateAppointmentView(APIView):
             "last_name": appointment.last_name,
             "address": appointment.address,
             "details": appointment.details,
+            "due_date": appointment.due_date,
+            "status": appointment.status,
             "appointed_to": {
                 "id": worker.id,
                 "first_name": worker.first_name,
@@ -126,10 +218,7 @@ class UpdateAppointmentView(APIView):
                 "email": worker.email,
                 "address": worker.address
             }
-        }, status=status.HTTP_200_OK)
-        
-        
-        
+        }, status=status.HTTP_200_OK)       
 
 # Delete Appointment
 class DeleteAppointmentView(APIView):
@@ -262,6 +351,53 @@ class GetAppointmentsForLoggedInUser(APIView):
 
 
 
+
+# Add to views.py
+class UpdateAppointmentStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        try:
+            appointment = get_object_or_404(Appointment, pk=pk)
+            status_value = request.data.get('status')
+            
+            if not status_value or status_value not in dict(Appointment.STATUS_CHOICES):
+                return Response({"error": "Valid status is required."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            appointment.status = status_value
+            appointment.save()
+            
+            logger.info(f"Appointment {appointment.id} status updated to {status_value}.")
+            return Response({"message": f"Appointment status updated to {status_value}."}, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            logger.exception("An error occurred while updating appointment status: %s", e)
+            return Response({"error": "An error occurred while updating appointment status."}, 
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            
+            
+            
+            
+            
+            
+# Add to views.py
+class GetAppointmentsByStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, status_value):
+        if status_value not in dict(Appointment.STATUS_CHOICES):
+            return Response({"error": "Invalid status value."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        appointments = Appointment.objects.filter(status=status_value)
+        serializer = AppointmentSerializer(appointments, many=True)
+        return Response(serializer.data)
+    
+    
+    
+    
+    
+    
 
 
 

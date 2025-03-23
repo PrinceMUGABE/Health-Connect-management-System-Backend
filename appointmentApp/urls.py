@@ -12,7 +12,9 @@ from .views import (
     GetAppointmentsByCreatedByView,
     GetAppointmentsByAppointedToView,
     GetAppointmentsForLoggedInWorkerView,
-    GetAppointmentsForLoggedInUser
+    GetAppointmentsForLoggedInUser,
+    UpdateAppointmentStatusView,
+    GetAppointmentsByStatusView
     
 )
 
@@ -30,4 +32,7 @@ urlpatterns = [
     path('appointed_to/<int:worker_id>/', GetAppointmentsByAppointedToView.as_view(), name='get-appointments-by-appointed-to'),
     path('worker_appointments/', GetAppointmentsForLoggedInWorkerView.as_view(), name='worker-appointments'),
     path('user_appointments/', GetAppointmentsForLoggedInUser.as_view(), name='worker-appointments'),
+    path('status/<int:pk>/', UpdateAppointmentStatusView.as_view(), name='update-appointment-status'),
+    path('by-status/<str:status_value>/', GetAppointmentsByStatusView.as_view(), name='get-appointments-by-status'),
 ]
+

@@ -325,3 +325,28 @@ def mark_module_as_studied(request, candidate_id, module_id):
         "all_modules_completed": all_completed
     })
 
+
+# Add this function to views.py
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_candidate_module_progress(request, candidate_id):
+    try:
+        # Verify the candidate belongs to the current user
+        worker = get_object_or_404(CommunityHealthWorker, created_by=request.user)
+        candidate = get_object_or_404(Candidate, id=candidate_id, worker=worker)
+        
+        # Get all module progress records for this candidate
+        progress_records = ModuleProgress.objects.filter(candidate=candidate)
+        
+        # Format the data for the response
+        progress_data = [{
+            'id': record.id,
+            'module': record.module.id,
+            'module_name': record.module.name,
+            'is_studied': record.is_studied,
+            'studied_at': record.studied_at
+        } for record in progress_records]
+        
+        return Response(progress_data)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

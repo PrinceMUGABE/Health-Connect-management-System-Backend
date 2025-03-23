@@ -11,4 +11,5 @@ urlpatterns = [
     path('training/', views.get_candidates_training, name='get_candidates_training'),
     path('my_trainings/', views.get_user_registered_trainings, name='get_user_registered_trainings'),
     path('candidate/<int:candidate_id>/modules/<int:module_id>/mark-as-studied/', views.mark_module_as_studied, name='mark_module_as_studied'),
+    path('<int:candidate_id>/progress/', views.get_candidate_module_progress, name='get_candidate_module_progress'),
 ]
